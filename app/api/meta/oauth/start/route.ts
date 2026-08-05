@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const META_SCOPES = [
   "ads_management",
   "pages_show_list",
-  "instagram_basic",
+  "instagram_business_basic",
   "pages_read_engagement",
   "business_management",
 ].join(",");
