@@ -51,25 +51,13 @@ export default async function DashboardPage({
             </p>
 
             {metaConnection.page_id && metaConnection.ad_account_id ? (
-              <p className="text-sm text-green-700">
-                Pagina e conta de anuncio configuradas.
-              </p>
+              <p className="text-sm text-green-700">Pagina e conta de anuncio configuradas.</p>
             ) : (
-              
-                href="/dashboard/meta-setup"
-                className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit"
-              >
-                Escolher Pagina e conta de anuncio
-              </a>
+              <a href="/dashboard/meta-setup" className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit">Escolher Pagina e conta de anuncio</a>
             )}
           </>
         ) : (
-          
-            href="/api/meta/oauth/start"
-            className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit"
-          >
-            Conectar com Facebook
-          </a>
+          <a href="/api/meta/oauth/start" className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit">Conectar com Facebook</a>
         )}
       </div>
     </main>
