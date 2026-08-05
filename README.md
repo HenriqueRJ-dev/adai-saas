@@ -17,7 +17,7 @@ Módulo 0.1 concluído — base do projeto (Next.js + TypeScript + Tailwind CSS
 - Claude API (decisões de estratégia e geração de criativos)
 - n8n (automação diária e orquestração da Meta Marketing API)
 
-## Como rodar localmente (opcional, quando você tiver Node.js instalado)
+## Como rodar localmente (opcional, quando você tiver Node.js instalado) 
 
 ```
 npm install
