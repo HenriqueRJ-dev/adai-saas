@@ -46,17 +46,10 @@ export default async function DashboardPage({
         {metaConnection ? (
           <p className="text-sm text-neutral-600">
             Conta Meta conectada desde{" "}
-            {new Date(metaConnection.connected_at).toLocaleDateString(
-              "pt-BR"
-            )}
+            {new Date(metaConnection.connected_at).toLocaleDateString("pt-BR")}
           </p>
         ) : (
-          
-            href="/api/meta/oauth/start"
-            className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white"
-          >
-            Conectar com Facebook
-          </a>
+          <a href="/api/meta/oauth/start" className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">Conectar com Facebook</a>
         )}
       </div>
     </main>
