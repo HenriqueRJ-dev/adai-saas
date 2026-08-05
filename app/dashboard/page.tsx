@@ -23,6 +23,12 @@ export default async function DashboardPage({
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const { data: campaignConfig } = await supabase
+    .from("campaign_configs")
+    .select("daily_budget, objective, status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-4 p-6">
       <h1 className="text-2xl font-semibold">Bem-vindo ao AdAI</h1>
@@ -60,6 +66,34 @@ export default async function DashboardPage({
           <a href="/api/meta/oauth/start" className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit">Conectar com Facebook</a>
         )}
       </div>
+
+      {metaConnection?.page_id && metaConnection?.ad_account_id && (
+        <div className="rounded-md border p-4 flex flex-col gap-3">
+          {campaignConfig ? (
+            <>
+              <p className="text-sm text-neutral-600">
+                Orçamento diário: <strong>R$ {Number(campaignConfig.daily_budget).toFixed(2)}</strong>
+              </p>
+              <p className="text-sm text-neutral-600">
+                Status: <strong>{campaignConfig.status}</strong>
+              </p>
+              <a
+                href="/dashboard/campaign-setup"
+                className="inline-block rounded-md border px-4 py-2 text-sm font-medium w-fit"
+              >
+                Editar configuração
+              </a>
+            </>
+          ) : (
+            <a
+              href="/dashboard/campaign-setup"
+              className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white w-fit"
+            >
+              Configurar orçamento e objetivo
+            </a>
+          )}
+        </div>
+      )}
     </main>
   );
 }
