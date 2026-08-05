@@ -25,9 +25,9 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Bem-vindo ao AdAI 🎉</h1>
+      <h1 className="text-2xl font-semibold">Bem-vindo ao AdAI</h1>
       <p className="text-neutral-500">
-        Você está logado como <strong>{user.email}</strong>.
+        Voce esta logado como <strong>{user.email}</strong>.
       </p>
 
       {params.meta_connected && (
@@ -45,7 +45,7 @@ export default async function DashboardPage({
       <div className="rounded-md border p-4">
         {metaConnection ? (
           <p className="text-sm text-neutral-600">
-            ✅ Conta Meta conectada desde{" "}
+            Conta Meta conectada desde{" "}
             {new Date(metaConnection.connected_at).toLocaleDateString(
               "pt-BR"
             )}
