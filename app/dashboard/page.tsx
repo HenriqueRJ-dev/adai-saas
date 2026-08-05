@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ meta_connected?: string; meta_error?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -11,17 +15,50 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const params = await searchParams;
+
+  const { data: metaConnection } = await supabase
+    .from("meta_connections")
+    .select("connected_at")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-4 p-6">
       <h1 className="text-2xl font-semibold">Bem-vindo ao AdAI 🎉</h1>
       <p className="text-neutral-500">
         Você está logado como <strong>{user.email}</strong>.
       </p>
-      <p className="text-sm text-neutral-400">
-        Esta é uma página provisória do Módulo 0.4. Nos próximos módulos,
-        aqui vai entrar a conexão com sua conta Meta e a configuração das
-        campanhas.
-      </p>
+
+      {params.meta_connected && (
+        <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">
+          Conta Meta conectada com sucesso!
+        </p>
+      )}
+
+      {params.meta_error && (
+        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          Erro ao conectar com a Meta: {params.meta_error}
+        </p>
+      )}
+
+      <div className="rounded-md border p-4">
+        {metaConnection ? (
+          <p className="text-sm text-neutral-600">
+            ✅ Conta Meta conectada desde{" "}
+            {new Date(metaConnection.connected_at).toLocaleDateString(
+              "pt-BR"
+            )}
+          </p>
+        ) : (
+          
+            href="/api/meta/oauth/start"
+            className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+          >
+            Conectar com Facebook
+          </a>
+        )}
+      </div>
     </main>
   );
 }
