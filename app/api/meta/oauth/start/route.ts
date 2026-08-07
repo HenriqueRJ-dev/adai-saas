@@ -5,8 +5,7 @@ const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
   "business_management",
-  "instagram_basic",
-  "instagram_manage_insights",
+  "instagram_business_basic",
 ].join(",");
 
 export async function GET(request: Request) {
@@ -15,7 +14,7 @@ export async function GET(request: Request) {
 
   if (!appId) {
     return NextResponse.json(
-      { error: "META_APP_ID não configurado" },
+      { error: "META_APP_ID nao configurado" },
       { status: 500 }
     );
   }
