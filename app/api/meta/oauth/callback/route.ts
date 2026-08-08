@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { encryptToken } from "@/lib/crypto";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -7,9 +8,7 @@ export async function GET(request: Request) {
   const errorParam = searchParams.get("error");
 
   if (errorParam) {
-    return NextResponse.redirect(
-      `${origin}/dashboard?meta_error=${errorParam}`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=${errorParam}`);
   }
 
   if (!code) {
@@ -29,7 +28,6 @@ export async function GET(request: Request) {
   const appSecret = process.env.META_APP_SECRET;
   const redirectUri = `${origin}/api/meta/oauth/callback`;
 
-  // Passo 1: trocar o "code" por um access_token de curta duração
   const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   tokenUrl.searchParams.set("client_id", appId!);
   tokenUrl.searchParams.set("client_secret", appSecret!);
@@ -41,14 +39,11 @@ export async function GET(request: Request) {
 
   if (!tokenRes.ok || tokenData.error) {
     console.error("Erro ao trocar code por token:", tokenData);
-    return NextResponse.redirect(
-      `${origin}/dashboard?meta_error=token_exchange_failed`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=token_exchange_failed`);
   }
 
   const shortLivedToken = tokenData.access_token;
 
-  // Passo 2: trocar o token de curta duração por um de longa duração (~60 dias)
   const longLivedUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   longLivedUrl.searchParams.set("grant_type", "fb_exchange_token");
   longLivedUrl.searchParams.set("client_id", appId!);
@@ -60,28 +55,24 @@ export async function GET(request: Request) {
 
   if (!longLivedRes.ok || longLivedData.error) {
     console.error("Erro ao gerar long-lived token:", longLivedData);
-    return NextResponse.redirect(
-      `${origin}/dashboard?meta_error=long_lived_token_failed`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=long_lived_token_failed`);
   }
 
   const longLivedToken = longLivedData.access_token;
+  const encryptedToken = encryptToken(longLivedToken);
 
-  // Passo 3: salvar a conexão no Supabase
   const { error: dbError } = await supabase.from("meta_connections").upsert(
     {
       user_id: user.id,
-      access_token: longLivedToken,
+      access_token: encryptedToken,
       connected_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }
   );
 
   if (dbError) {
-    console.error("Erro ao salvar conexão Meta:", dbError);
-    return NextResponse.redirect(
-      `${origin}/dashboard?meta_error=save_failed`
-    );
+    console.error("Erro ao salvar conexao Meta:", dbError);
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=save_failed`);
   }
 
   return NextResponse.redirect(`${origin}/dashboard?meta_connected=true`);
