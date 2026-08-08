@@ -4,7 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ meta_connected?: string; meta_error?: string }>;
+  searchParams: Promise<{
+    meta_connected?: string;
+    meta_error?: string;
+    instagram_connected?: string;
+    instagram_error?: string;
+  }>;
 }) {
   const supabase = await createClient();
   const {
@@ -19,13 +24,7 @@ export default async function DashboardPage({
 
   const { data: metaConnection } = await supabase
     .from("meta_connections")
-    .select("connected_at, page_id, ad_account_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  const { data: campaignConfig } = await supabase
-    .from("campaign_configs")
-    .select("daily_budget, objective, status")
+    .select("connected_at, page_id, ad_account_id, instagram_access_token")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -37,15 +36,16 @@ export default async function DashboardPage({
       </p>
 
       {params.meta_connected && (
-        <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">
-          Conta Meta conectada com sucesso!
-        </p>
+        <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">Conta Meta conectada com sucesso!</p>
       )}
-
       {params.meta_error && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-          Erro ao conectar com a Meta: {params.meta_error}
-        </p>
+        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">Erro ao conectar com a Meta: {params.meta_error}</p>
+      )}
+      {params.instagram_connected && (
+        <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">Instagram conectado com sucesso!</p>
+      )}
+      {params.instagram_error && (
+        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">Erro ao conectar Instagram: {params.instagram_error}</p>
       )}
 
       <div className="rounded-md border p-4 flex flex-col gap-3">
@@ -61,39 +61,19 @@ export default async function DashboardPage({
             ) : (
               <a href="/dashboard/meta-setup" className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit">Escolher Pagina e conta de anuncio</a>
             )}
+
+            {metaConnection.page_id && metaConnection.ad_account_id && (
+              metaConnection.instagram_access_token ? (
+                <p className="text-sm text-green-700">Instagram conectado.</p>
+              ) : (
+                <a href="/api/instagram/oauth/start" className="inline-block rounded-md bg-pink-600 px-4 py-2 text-sm font-medium text-white w-fit">Conectar Instagram</a>
+              )
+            )}
           </>
         ) : (
           <a href="/api/meta/oauth/start" className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white w-fit">Conectar com Facebook</a>
         )}
       </div>
-
-      {metaConnection?.page_id && metaConnection?.ad_account_id && (
-        <div className="rounded-md border p-4 flex flex-col gap-3">
-          {campaignConfig ? (
-            <>
-              <p className="text-sm text-neutral-600">
-                Orçamento diário: <strong>R$ {Number(campaignConfig.daily_budget).toFixed(2)}</strong>
-              </p>
-              <p className="text-sm text-neutral-600">
-                Status: <strong>{campaignConfig.status}</strong>
-              </p>
-              <a
-                href="/dashboard/campaign-setup"
-                className="inline-block rounded-md border px-4 py-2 text-sm font-medium w-fit"
-              >
-                Editar configuração
-              </a>
-            </>
-          ) : (
-            <a
-              href="/dashboard/campaign-setup"
-              className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white w-fit"
-            >
-              Configurar orçamento e objetivo
-            </a>
-          )}
-        </div>
-      )}
     </main>
   );
 }
