@@ -5,7 +5,7 @@ const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
   "business_management",
-  "instagram_business_basic",
+  "instagram_basic",
 ].join(",");
 
 export async function GET(request: Request) {
