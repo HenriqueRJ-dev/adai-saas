@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { encryptToken } from "@/lib/crypto";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -7,15 +8,11 @@ export async function GET(request: Request) {
   const errorParam = searchParams.get("error");
 
   if (errorParam) {
-    return NextResponse.redirect(
-      `${origin}/dashboard?instagram_error=${errorParam}`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?instagram_error=${errorParam}`);
   }
 
   if (!code) {
-    return NextResponse.redirect(
-      `${origin}/dashboard?instagram_error=no_code`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?instagram_error=no_code`);
   }
 
   const supabase = await createClient();
@@ -46,9 +43,7 @@ export async function GET(request: Request) {
 
   if (!tokenRes.ok || tokenData.error_type) {
     console.error("Erro ao trocar code por token do Instagram:", tokenData);
-    return NextResponse.redirect(
-      `${origin}/dashboard?instagram_error=token_exchange_failed`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?instagram_error=token_exchange_failed`);
   }
 
   const shortLivedToken = tokenData.access_token;
@@ -64,26 +59,23 @@ export async function GET(request: Request) {
 
   if (!longLivedRes.ok || longLivedData.error) {
     console.error("Erro ao gerar long-lived token do Instagram:", longLivedData);
-    return NextResponse.redirect(
-      `${origin}/dashboard?instagram_error=long_lived_token_failed`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?instagram_error=long_lived_token_failed`);
   }
 
   const longLivedToken = longLivedData.access_token;
+  const encryptedToken = encryptToken(longLivedToken);
 
   const { error: dbError } = await supabase
     .from("meta_connections")
     .update({
-      instagram_access_token: longLivedToken,
+      instagram_access_token: encryptedToken,
       instagram_user_id: String(igUserId),
     })
     .eq("user_id", user.id);
 
   if (dbError) {
     console.error("Erro ao salvar conexao Instagram:", dbError);
-    return NextResponse.redirect(
-      `${origin}/dashboard?instagram_error=save_failed`
-    );
+    return NextResponse.redirect(`${origin}/dashboard?instagram_error=save_failed`);
   }
 
   return NextResponse.redirect(`${origin}/dashboard?instagram_connected=true`);
