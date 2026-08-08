@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-/**
- * Rota de diagnóstico do Módulo 3.1.
- *
- * Busca os dados brutos do Instagram (bio, seguidores, posts recentes
- * com legendas) usando o Instagram Graph API. Ainda não envia nada
- * para a Claude API — isso é o próximo módulo (3.2).
- *
- * Acesse /api/instagram/analyze-data (logado) para ver o JSON retornado.
- */
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -22,32 +13,20 @@ export async function GET() {
 
   const { data: connection } = await supabase
     .from("meta_connections")
-    .select("access_token, ig_user_id")
+    .select("instagram_access_token, instagram_user_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!connection?.access_token) {
+  if (!connection?.instagram_access_token) {
     return NextResponse.json(
-      { error: "meta_not_connected" },
+      { error: "instagram_not_connected" },
       { status: 400 }
     );
   }
 
-  if (!connection.ig_user_id) {
-    return NextResponse.json(
-      {
-        error: "instagram_not_linked",
-        message:
-          "Nenhuma conta do Instagram vinculada à Página selecionada.",
-      },
-      { status: 400 }
-    );
-  }
+  const { instagram_access_token: accessToken, instagram_user_id: igUserId } = connection;
 
-  const { access_token: accessToken, ig_user_id: igUserId } = connection;
-
-  // Passo 1: buscar os dados do perfil (bio, nome, seguidores, site)
-  const profileUrl = `https://graph.facebook.com/v21.0/${igUserId}?fields=biography,name,username,followers_count,website,profile_picture_url&access_token=${accessToken}`;
+  const profileUrl = `https://graph.instagram.com/v21.0/${igUserId}?fields=biography,name,username,followers_count,website&access_token=${accessToken}`;
   const profileRes = await fetch(profileUrl);
   const profileData = await profileRes.json();
 
@@ -59,12 +38,7 @@ export async function GET() {
     );
   }
 
-  // Passo 2: buscar os posts recentes (até 15) com legenda
-  // Observação: like_count e comments_count exigem a permissão extra
-  // "instagram_manage_insights", que ainda não temos — por isso não
-  // pedimos esses campos aqui. Para a análise de marca (Módulo 3.2),
-  // a legenda e o tipo de mídia já são suficientes.
-  const mediaUrl = `https://graph.facebook.com/v21.0/${igUserId}/media?fields=caption,media_type,media_url,permalink,timestamp&limit=15&access_token=${accessToken}`;
+  const mediaUrl = `https://graph.instagram.com/v21.0/${igUserId}/media?fields=caption,media_type,media_url,permalink,timestamp&limit=15&access_token=${accessToken}`;
   const mediaRes = await fetch(mediaUrl);
   const mediaData = await mediaRes.json();
 
