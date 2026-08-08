@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { decryptToken } from "@/lib/crypto";
 
 export async function GET() {
   const supabase = await createClient();
@@ -18,13 +19,11 @@ export async function GET() {
     .maybeSingle();
 
   if (!connection?.instagram_access_token) {
-    return NextResponse.json(
-      { error: "instagram_not_connected" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "instagram_not_connected" }, { status: 400 });
   }
 
-  const { instagram_access_token: accessToken, instagram_user_id: igUserId } = connection;
+  const accessToken = decryptToken(connection.instagram_access_token);
+  const igUserId = connection.instagram_user_id;
 
   const profileUrl = `https://graph.instagram.com/v21.0/${igUserId}?fields=biography,name,username,followers_count,website&access_token=${accessToken}`;
   const profileRes = await fetch(profileUrl);
