@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
 export async function POST() {
   const supabase = await createClient();
   const {
@@ -31,9 +30,7 @@ export async function POST() {
       { status: 400 }
     );
   }
-
   const geminiKey = process.env.GEMINI_API_KEY;
-
   const prompt = `Voce e um especialista em Meta Ads (Facebook e Instagram Ads).
 Com base na analise de marca e na configuracao abaixo, monte uma estrategia de campanha.
 Analise de marca:
@@ -59,9 +56,8 @@ Devolva APENAS um JSON valido, sem texto antes ou depois, no formato exato:
   ]
 }
 Gere exatamente 2 variacoes de criativos dentro do array "criativos".`;
-
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
     {
       method: "POST",
       headers: {
@@ -76,16 +72,12 @@ Gere exatamente 2 variacoes de criativos dentro do array "criativos".`;
       }),
     }
   );
-
   const geminiData = await geminiRes.json();
-
   if (!geminiRes.ok) {
     console.error("Erro na Gemini API:", geminiData);
     return NextResponse.json({ error: "gemini_api_failed", details: geminiData }, { status: 500 });
   }
-
   const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
   let strategy;
   try {
     const cleaned = rawText.replace(/```json|```/g, "").trim();
@@ -94,7 +86,6 @@ Gere exatamente 2 variacoes de criativos dentro do array "criativos".`;
     console.error("Erro ao interpretar resposta do Gemini:", rawText);
     return NextResponse.json({ error: "invalid_gemini_response", raw: rawText }, { status: 500 });
   }
-
   const { error: dbError } = await supabase
     .from("campaign_configs")
     .update({ strategy })
@@ -103,6 +94,5 @@ Gere exatamente 2 variacoes de criativos dentro do array "criativos".`;
     console.error("Erro ao salvar estrategia:", dbError);
     return NextResponse.json({ error: "save_failed" }, { status: 500 });
   }
-
   return NextResponse.json({ success: true, strategy });
 }
