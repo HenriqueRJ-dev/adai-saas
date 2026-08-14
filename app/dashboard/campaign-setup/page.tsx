@@ -14,6 +14,7 @@ export default function CampaignSetupPage() {
   const router = useRouter();
   const [dailyBudget, setDailyBudget] = useState("");
   const [objective, setObjective] = useState("");
+  const [instagramPostUrl, setInstagramPostUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -38,7 +39,6 @@ export default function CampaignSetupPage() {
     }
     setSaving(true);
 
-    // 1. Salva config e gera estratégia (já encadeado dentro de /api/campaign/create)
     const res = await fetch("/api/campaign/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -55,9 +55,10 @@ export default function CampaignSetupPage() {
       return;
     }
 
-    // 2. Cria a campanha de verdade no Meta Ads (em modo PAUSADO)
     const deployRes = await fetch("/api/campaign/deploy", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instagramPostUrl }),
     });
 
     setSaving(false);
@@ -120,6 +121,22 @@ export default function CampaignSetupPage() {
             </option>
           ))}
         </select>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium" htmlFor="instagramPostUrl">
+          Link da publicação do Instagram
+        </label>
+        <input
+          id="instagramPostUrl"
+          type="url"
+          value={instagramPostUrl}
+          onChange={(e) => setInstagramPostUrl(e.target.value)}
+          placeholder="https://www.instagram.com/p/XXXXXXXXXXX/"
+          className="rounded-md border px-3 py-2 text-sm"
+        />
+        <p className="text-xs text-neutral-400">
+          Cole o link da publicação que você quer usar como anúncio.
+        </p>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {result && (
