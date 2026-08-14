@@ -14,11 +14,11 @@ export async function POST() {
 
   const { data: connection } = await supabase
     .from("meta_connections")
-    .select("instagram_access_token, ad_account_id, page_id")
+    .select("access_token, ad_account_id, page_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!connection?.instagram_access_token || !connection?.ad_account_id || !connection?.page_id) {
+  if (!connection?.access_token || !connection?.ad_account_id || !connection?.page_id) {
     return NextResponse.json(
       { error: "meta_not_fully_configured" },
       { status: 400 }
@@ -38,13 +38,12 @@ export async function POST() {
     );
   }
 
-  const accessToken = decryptToken(connection.instagram_access_token);
+  const accessToken = decryptToken(connection.access_token);
   const adAccountId = connection.ad_account_id;
   const pageId = connection.page_id;
   const strategy = campaignConfig.strategy as any;
 
   try {
-    // 1. Criar a Campaign
     const campaignRes = await fetch(
       `https://graph.facebook.com/v21.0/${adAccountId}/campaigns`,
       {
@@ -64,7 +63,6 @@ export async function POST() {
 
     const campaignId = campaignData.id;
 
-    // 2. Criar o Ad Set
     const adSetRes = await fetch(
       `https://graph.facebook.com/v21.0/${adAccountId}/adsets`,
       {
@@ -98,7 +96,6 @@ export async function POST() {
 
     const adSetId = adSetData.id;
 
-    // 3. Criar o Ad Creative (usando a primeira variacao gerada pela IA)
     const criativo = strategy.criativos?.[0] ?? {
       titulo: "Conheca nosso trabalho",
       texto_principal: "Entre em contato para saber mais.",
@@ -130,7 +127,6 @@ export async function POST() {
 
     const creativeId = creativeData.id;
 
-    // 4. Criar o Ad
     const adRes = await fetch(
       `https://graph.facebook.com/v21.0/${adAccountId}/ads`,
       {
@@ -148,7 +144,6 @@ export async function POST() {
     const adData = await adRes.json();
     if (adData.error) throw { step: "ad", details: adData.error };
 
-    // Salvar tudo no Supabase
     await supabase.from("campaigns").insert({
       user_id: user.id,
       meta_campaign_id: campaignId,
