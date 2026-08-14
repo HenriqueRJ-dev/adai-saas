@@ -14,11 +14,11 @@ export async function POST() {
 
   const { data: connection } = await supabase
     .from("meta_connections")
-    .select("access_token, ad_account_id, page_id")
+    .select("instagram_access_token, ad_account_id, page_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!connection?.access_token || !connection?.ad_account_id || !connection?.page_id) {
+  if (!connection?.instagram_access_token || !connection?.ad_account_id || !connection?.page_id) {
     return NextResponse.json(
       { error: "meta_not_fully_configured" },
       { status: 400 }
@@ -38,7 +38,7 @@ export async function POST() {
     );
   }
 
-  const accessToken = decryptToken(connection.access_token);
+  const accessToken = decryptToken(connection.instagram_access_token);
   const adAccountId = connection.ad_account_id;
   const pageId = connection.page_id;
   const strategy = campaignConfig.strategy as any;
