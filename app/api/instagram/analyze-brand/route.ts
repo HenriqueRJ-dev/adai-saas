@@ -42,7 +42,7 @@ export async function POST() {
     .filter(Boolean)
     .join("\n---\n");
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
   const prompt = `Voce e um especialista em marketing digital e Meta Ads.
 Analise o perfil do Instagram abaixo e devolva APENAS um JSON valido, sem nenhum texto antes ou depois, no seguinte formato exato:
@@ -62,36 +62,39 @@ Seguidores: ${profileData.followers_count}
 Legendas dos posts recentes:
 ${captions}`;
 
-  const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": anthropicKey!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+      }),
+    }
+  );
 
-  const claudeData = await claudeRes.json();
+  const geminiData = await geminiRes.json();
 
-  if (!claudeRes.ok) {
-    console.error("Erro na Claude API:", claudeData);
-    return NextResponse.json({ error: "claude_api_failed", details: claudeData }, { status: 500 });
+  if (!geminiRes.ok) {
+    console.error("Erro na Gemini API:", geminiData);
+    return NextResponse.json({ error: "gemini_api_failed", details: geminiData }, { status: 500 });
   }
 
-  const rawText = claudeData.content?.[0]?.text ?? "";
+  const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
   let analysis;
   try {
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     analysis = JSON.parse(cleaned);
   } catch (e) {
-    console.error("Erro ao interpretar resposta da Claude:", rawText);
-    return NextResponse.json({ error: "invalid_claude_response", raw: rawText }, { status: 500 });
+    console.error("Erro ao interpretar resposta do Gemini:", rawText);
+    return NextResponse.json({ error: "invalid_gemini_response", raw: rawText }, { status: 500 });
   }
 
   const { error: dbError } = await supabase.from("ai_brand_analysis").upsert(
