@@ -1,29 +1,29 @@
-// Resolve o link do Instagram para o media ID, se foi enviado e a conta foi encontrada
+// Resolve o link do Instagram para o media ID usando oEmbed (não depende
+    // de permissao de listagem, so precisa de um access token de app valido)
     let sourceMediaId: string | null = null;
 
     if (instagramPostUrl && igBusinessId) {
-      const mediaListRes = await fetch(
-        `https://graph.facebook.com/v21.0/${igBusinessId}/media?fields=id,permalink&limit=50&access_token=${accessToken}`
-      );
-      const mediaListData = await mediaListRes.json();
-      console.log("DEBUG instagram media:", JSON.stringify(mediaListData));
+      const oembedUrl = new URL("https://graph.facebook.com/v21.0/instagram_oembed");
+      oembedUrl.searchParams.set("url", instagramPostUrl);
+      oembedUrl.searchParams.set("fields", "media_id");
+      oembedUrl.searchParams.set("access_token", accessToken);
 
-      const normalizedInput = instagramPostUrl.split("?")[0].replace(/\/$/, "");
-      const match = mediaListData.data?.find(
-        (m: any) => m.permalink?.replace(/\/$/, "") === normalizedInput
-      );
+      const oembedRes = await fetch(oembedUrl.toString());
+      const oembedData = await oembedRes.json();
+      console.log("DEBUG oembed:", JSON.stringify(oembedData));
 
-      if (!match) {
+      if (!oembedData.media_id) {
         return NextResponse.json(
           {
             error: "instagram_post_not_found",
-            message: "Não encontrei essa publicação na conta do Instagram conectada. Verifique o link.",
+            message: "Não encontrei essa publicação. Verifique se o link está correto e se o post é público.",
+            details: oembedData.error,
           },
           { status: 400 }
         );
       }
 
-      sourceMediaId = match.id;
+      sourceMediaId = oembedData.media_id;
     } else if (instagramPostUrl && !igBusinessId) {
       return NextResponse.json(
         {
