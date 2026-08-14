@@ -86,9 +86,9 @@ export async function POST() {
                 ? [2]
                 : [1, 2],
             geo_locations: { countries: ["BR"] },
-          },
-          targeting_automation: {
-            advantage_audience: 0,
+            targeting_automation: {
+              advantage_audience: 0,
+            },
           },
           status: "PAUSED",
           access_token: accessToken,
