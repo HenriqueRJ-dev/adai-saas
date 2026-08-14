@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { decryptToken } from "@/lib/crypto";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const { instagramPostUrl } = await request.json();
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -14,7 +16,7 @@ export async function POST() {
 
   const { data: connection } = await supabase
     .from("meta_connections")
-    .select("access_token, ad_account_id, page_id")
+    .select("access_token, ad_account_id, page_id, instagram_access_token, instagram_user_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -132,24 +134,66 @@ export async function POST() {
 
     const ctaType = ctaMap[String(criativo.cta ?? "").toUpperCase()] ?? "LEARN_MORE";
 
+    // Resolve o link do Instagram para o media ID, se foi enviado
+    let sourceMediaId: string | null = null;
+
+    if (instagramPostUrl && connection.instagram_access_token && connection.instagram_user_id) {
+      const igAccessToken = decryptToken(connection.instagram_access_token);
+      const igUserId = connection.instagram_user_id;
+
+      const mediaListRes = await fetch(
+        `https://graph.facebook.com/v21.0/${igUserId}/media?fields=id,permalink&limit=50&access_token=${igAccessToken}`
+      );
+      const mediaListData = await mediaListRes.json();
+
+      const normalizedInput = instagramPostUrl.split("?")[0].replace(/\/$/, "");
+      const match = mediaListData.data?.find(
+        (m: any) => m.permalink?.replace(/\/$/, "") === normalizedInput
+      );
+
+      if (!match) {
+        return NextResponse.json(
+          {
+            error: "instagram_post_not_found",
+            message: "Não encontrei essa publicação na conta do Instagram conectada. Verifique o link.",
+          },
+          { status: 400 }
+        );
+      }
+
+      sourceMediaId = match.id;
+    }
+
     const creativeRes = await fetch(
       `https://graph.facebook.com/v21.0/${adAccountId}/adcreatives`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "AdAI - Criativo 1",
-          object_story_spec: {
-            page_id: pageId,
-            link_data: {
-              message: criativo.texto_principal,
-              link: "https://adai-saas.vercel.app",
-              name: criativo.titulo,
-              call_to_action: { type: ctaType },
-            },
-          },
-          access_token: accessToken,
-        }),
+        body: JSON.stringify(
+          sourceMediaId
+            ? {
+                name: "AdAI - Criativo 1",
+                object_story_spec: {
+                  page_id: pageId,
+                  instagram_actor_id: connection.instagram_user_id,
+                },
+                source_instagram_media_id: sourceMediaId,
+                access_token: accessToken,
+              }
+            : {
+                name: "AdAI - Criativo 1",
+                object_story_spec: {
+                  page_id: pageId,
+                  link_data: {
+                    message: criativo.texto_principal,
+                    link: "https://adai-saas.vercel.app",
+                    name: criativo.titulo,
+                    call_to_action: { type: ctaType },
+                  },
+                },
+                access_token: accessToken,
+              }
+        ),
       }
     );
     const creativeData = await creativeRes.json();
