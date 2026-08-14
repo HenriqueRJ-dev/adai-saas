@@ -57,7 +57,7 @@ Devolva APENAS um JSON valido, sem texto antes ou depois, no formato exato:
 }
 Gere exatamente 2 variacoes de criativos dentro do array "criativos".`;
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`,
     {
       method: "POST",
       headers: {
