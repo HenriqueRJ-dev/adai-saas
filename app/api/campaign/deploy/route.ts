@@ -145,6 +145,7 @@ export async function POST(request: Request) {
         `https://graph.facebook.com/v21.0/${igUserId}/media?fields=id,permalink&limit=50&access_token=${igAccessToken}`
       );
       const mediaListData = await mediaListRes.json();
+      console.log("DEBUG instagram media:", JSON.stringify(mediaListData));
 
       const normalizedInput = instagramPostUrl.split("?")[0].replace(/\/$/, "");
       const match = mediaListData.data?.find(
