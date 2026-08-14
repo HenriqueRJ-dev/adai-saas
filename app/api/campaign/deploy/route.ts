@@ -106,6 +106,32 @@ export async function POST() {
       cta: "SAIBA_MAIS",
     };
 
+    const ctaMap: Record<string, string> = {
+      SAIBA_MAIS: "LEARN_MORE",
+      LEARN_MORE: "LEARN_MORE",
+      CADASTRE_SE: "SIGN_UP",
+      SIGN_UP: "SIGN_UP",
+      COMPRE_AGORA: "SHOP_NOW",
+      SHOP_NOW: "SHOP_NOW",
+      ENTRE_EM_CONTATO: "CONTACT_US",
+      CONTACT_US: "CONTACT_US",
+      LIGUE_AGORA: "CALL_NOW",
+      CALL_NOW: "CALL_NOW",
+      ENVIAR_MENSAGEM: "MESSAGE_PAGE",
+      MESSAGE_PAGE: "MESSAGE_PAGE",
+      WHATSAPP: "WHATSAPP_MESSAGE",
+      WHATSAPP_MESSAGE: "WHATSAPP_MESSAGE",
+      ENVIAR_WHATSAPP: "WHATSAPP_MESSAGE",
+      SOLICITAR_ORCAMENTO: "GET_QUOTE",
+      GET_QUOTE: "GET_QUOTE",
+      INSCREVA_SE: "SIGN_UP",
+      COMPRAR: "SHOP_NOW",
+      BAIXAR: "DOWNLOAD",
+      DOWNLOAD: "DOWNLOAD",
+    };
+
+    const ctaType = ctaMap[String(criativo.cta ?? "").toUpperCase()] ?? "LEARN_MORE";
+
     const creativeRes = await fetch(
       `https://graph.facebook.com/v21.0/${adAccountId}/adcreatives`,
       {
@@ -119,7 +145,7 @@ export async function POST() {
               message: criativo.texto_principal,
               link: "https://adai-saas.vercel.app",
               name: criativo.titulo,
-              call_to_action: { type: criativo.cta },
+              call_to_action: { type: ctaType },
             },
           },
           access_token: accessToken,
