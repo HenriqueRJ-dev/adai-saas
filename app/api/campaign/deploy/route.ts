@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   const { data: connection } = await supabase
     .from("meta_connections")
-    .select("access_token, ad_account_id, page_id, instagram_access_token, instagram_user_id")
+    .select("access_token, ad_account_id, page_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -134,15 +134,27 @@ export async function POST(request: Request) {
 
     const ctaType = ctaMap[String(criativo.cta ?? "").toUpperCase()] ?? "LEARN_MORE";
 
-    // Resolve o link do Instagram para o media ID, se foi enviado
+    // Busca o ID da conta business do Instagram vinculada a essa Pagina,
+    // usando o token do Meta que ja funciona (nao depende mais da conexao
+    // separada do Instagram, que usava uma API incompativel).
+    let igBusinessId: string | null = null;
+
+    const pageIgRes = await fetch(
+      `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`
+    );
+    const pageIgData = await pageIgRes.json();
+    console.log("DEBUG page instagram_business_account:", JSON.stringify(pageIgData));
+
+    if (pageIgData.instagram_business_account?.id) {
+      igBusinessId = pageIgData.instagram_business_account.id;
+    }
+
+    // Resolve o link do Instagram para o media ID, se foi enviado e a conta foi encontrada
     let sourceMediaId: string | null = null;
 
-    if (instagramPostUrl && connection.instagram_access_token && connection.instagram_user_id) {
-      const igAccessToken = decryptToken(connection.instagram_access_token);
-      const igUserId = connection.instagram_user_id;
-
+    if (instagramPostUrl && igBusinessId) {
       const mediaListRes = await fetch(
-        `https://graph.facebook.com/v21.0/${igUserId}/media?fields=id,permalink&limit=50&access_token=${igAccessToken}`
+        `https://graph.facebook.com/v21.0/${igBusinessId}/media?fields=id,permalink&limit=50&access_token=${accessToken}`
       );
       const mediaListData = await mediaListRes.json();
       console.log("DEBUG instagram media:", JSON.stringify(mediaListData));
@@ -163,6 +175,14 @@ export async function POST(request: Request) {
       }
 
       sourceMediaId = match.id;
+    } else if (instagramPostUrl && !igBusinessId) {
+      return NextResponse.json(
+        {
+          error: "instagram_not_linked",
+          message: "A Pagina do Facebook conectada nao tem uma conta do Instagram profissional vinculada, ou falta permissao. Reconecte o Meta e tente novamente.",
+        },
+        { status: 400 }
+      );
     }
 
     const creativeRes = await fetch(
@@ -176,7 +196,7 @@ export async function POST(request: Request) {
                 name: "AdAI - Criativo 1",
                 object_story_spec: {
                   page_id: pageId,
-                  instagram_actor_id: connection.instagram_user_id,
+                  instagram_actor_id: igBusinessId,
                 },
                 source_instagram_media_id: sourceMediaId,
                 access_token: accessToken,
