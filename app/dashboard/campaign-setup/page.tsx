@@ -65,9 +65,10 @@ export default function CampaignSetupPage() {
 
     if (!deployRes.ok) {
       const deployData = await deployRes.json().catch(() => ({}));
+      const metaCode = deployData?.details?.code ? ` (código Meta ${deployData.details.code})` : "";
+      const metaSubcode = deployData?.details?.error_subcode ? ` / subcódigo ${deployData.details.error_subcode}` : "";
       setError(
-        deployData.message ??
-          "Estratégia gerada, mas houve um problema ao criar a campanha no Meta Ads."
+        `${deployData.message ?? "Houve um problema ao criar a campanha no Meta Ads."}${metaCode}${metaSubcode}`
       );
       return;
     }

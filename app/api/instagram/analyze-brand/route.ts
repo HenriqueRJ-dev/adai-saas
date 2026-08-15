@@ -19,10 +19,13 @@ export async function POST() {
   }
   const accessToken = decryptToken(connection.instagram_access_token);
   const igUserId = connection.instagram_user_id;
-  const profileUrl = `https://graph.instagram.com/v21.0/${igUserId}?fields=biography,name,username,followers_count,website&access_token=${accessToken}`;
+  if (!igUserId) {
+    return NextResponse.json({ error: "instagram_user_missing" }, { status: 400 });
+  }
+  const profileUrl = `https://graph.instagram.com/v26.0/${igUserId}?fields=biography,name,username,followers_count,website&access_token=${accessToken}`;
   const profileRes = await fetch(profileUrl);
   const profileData = await profileRes.json();
-  const mediaUrl = `https://graph.instagram.com/v21.0/${igUserId}/media?fields=caption,media_type,timestamp&limit=15&access_token=${accessToken}`;
+  const mediaUrl = `https://graph.instagram.com/v26.0/${igUserId}/media?fields=caption,media_type,timestamp&limit=15&access_token=${accessToken}`;
   const mediaRes = await fetch(mediaUrl);
   const mediaData = await mediaRes.json();
   if (profileData.error || mediaData.error) {
@@ -33,6 +36,9 @@ export async function POST() {
     .filter(Boolean)
     .join("\n---\n");
   const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return NextResponse.json({ error: "GEMINI_API_KEY_not_configured" }, { status: 500 });
+  }
   const prompt = `Voce e um especialista em marketing digital e Meta Ads.
 Analise o perfil do Instagram abaixo e devolva APENAS um JSON valido, sem nenhum texto antes ou depois, no seguinte formato exato:
 {

@@ -4,12 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{
+  searchParams: {
     meta_connected?: string;
     meta_error?: string;
     instagram_connected?: string;
     instagram_error?: string;
-  }>;
+  };
 }) {
   const supabase = await createClient();
   const {
@@ -20,11 +20,11 @@ export default async function DashboardPage({
     redirect("/login");
   }
 
-  const params = await searchParams;
+  const params = searchParams;
 
   const { data: metaConnection } = await supabase
     .from("meta_connections")
-    .select("connected_at, page_id, ad_account_id, instagram_access_token")
+    .select("access_token, connected_at, page_id, ad_account_id, instagram_access_token")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -49,11 +49,13 @@ export default async function DashboardPage({
       )}
 
       <div className="rounded-md border p-4 flex flex-col gap-3">
-        {metaConnection ? (
+        {metaConnection?.access_token ? (
           <>
             <p className="text-sm text-neutral-600">
               Conta Meta conectada desde{" "}
-              {new Date(metaConnection.connected_at).toLocaleDateString("pt-BR")}
+              {metaConnection.connected_at
+                ? new Date(metaConnection.connected_at).toLocaleDateString("pt-BR")
+                : "data não disponível"}
             </p>
 
             {metaConnection.page_id && metaConnection.ad_account_id ? (

@@ -27,8 +27,8 @@ export async function GET() {
 
   const token = decryptToken(connection.access_token);
 
-  const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name&access_token=${token}`;
-  const adAccountsUrl = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&access_token=${token}`;
+  const pagesUrl = `https://graph.facebook.com/v26.0/me/accounts?fields=id,name&access_token=${token}`;
+  const adAccountsUrl = `https://graph.facebook.com/v26.0/me/adaccounts?fields=id,name,account_status,currency&access_token=${token}`;
 
   const [pagesRes, adAccountsRes] = await Promise.all([
     fetch(pagesUrl),

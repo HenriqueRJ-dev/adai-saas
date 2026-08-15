@@ -24,8 +24,11 @@ export async function GET() {
 
   const accessToken = decryptToken(connection.instagram_access_token);
   const igUserId = connection.instagram_user_id;
+  if (!igUserId) {
+    return NextResponse.json({ error: "instagram_user_missing" }, { status: 400 });
+  }
 
-  const profileUrl = `https://graph.instagram.com/v21.0/${igUserId}?fields=biography,name,username,followers_count,website&access_token=${accessToken}`;
+  const profileUrl = `https://graph.instagram.com/v26.0/${igUserId}?fields=biography,name,username,followers_count,website&access_token=${accessToken}`;
   const profileRes = await fetch(profileUrl);
   const profileData = await profileRes.json();
 
@@ -37,7 +40,7 @@ export async function GET() {
     );
   }
 
-  const mediaUrl = `https://graph.instagram.com/v21.0/${igUserId}/media?fields=caption,media_type,media_url,permalink,timestamp&limit=15&access_token=${accessToken}`;
+  const mediaUrl = `https://graph.instagram.com/v26.0/${igUserId}/media?fields=caption,media_type,media_url,permalink,timestamp&limit=15&access_token=${accessToken}`;
   const mediaRes = await fetch(mediaUrl);
   const mediaData = await mediaRes.json();
 

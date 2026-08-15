@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { decryptToken } from "@/lib/crypto";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -32,8 +33,9 @@ export async function POST(request: Request) {
   }
 
   let igUserId: string | null = null;
+  const accessToken = decryptToken(connection.access_token);
 
-  const igUrl = `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account&access_token=${connection.access_token}`;
+  const igUrl = `https://graph.facebook.com/v26.0/${pageId}?fields=instagram_business_account&access_token=${encodeURIComponent(accessToken)}`;
   const igRes = await fetch(igUrl);
   const igData = await igRes.json();
 
@@ -46,7 +48,6 @@ export async function POST(request: Request) {
     .update({
       page_id: pageId,
       ad_account_id: adAccountId,
-      ig_user_id: igUserId,
     })
     .eq("user_id", user.id);
 

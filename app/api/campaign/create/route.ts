@@ -16,15 +16,21 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
   }
-  const body = await request.json();
-  const { dailyBudget, objective } = body;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalido." }, { status: 400 });
+  }
+
+  const { dailyBudget, objective } = body as { dailyBudget?: unknown; objective?: unknown };
   if (typeof dailyBudget !== "number" || dailyBudget <= 0) {
     return NextResponse.json(
       { error: "Orçamento diário inválido." },
       { status: 400 }
     );
   }
-  if (!VALID_OBJECTIVES.includes(objective)) {
+  if (typeof objective !== "string" || !VALID_OBJECTIVES.includes(objective)) {
     return NextResponse.json(
       { error: "Objetivo de campanha inválido." },
       { status: 400 }
@@ -63,7 +69,7 @@ export async function POST(request: Request) {
   // Dispara automaticamente a geração da estratégia com IA,
   // para o fluxo ficar 100% automático (sem passo manual extra).
   const strategyRes = await fetch(
-    `${request.headers.get("origin")}/api/campaign/generate-strategy`,
+    new URL("/api/campaign/generate-strategy", request.url),
     {
       method: "POST",
       headers: {
@@ -77,11 +83,11 @@ export async function POST(request: Request) {
     console.error("Erro ao gerar estrategia automaticamente:", strategyError);
     return NextResponse.json(
       {
-        success: true,
-        warning: "Configuração salva, mas a IA ainda não conseguiu gerar a estratégia automaticamente.",
-        strategyError,
+        error: "strategy_generation_failed",
+        message: "Configuração salva, mas não foi possível gerar a estratégia com IA.",
+        details: strategyError,
       },
-      { status: 200 }
+      { status: 502 }
     );
   }
 

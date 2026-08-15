@@ -146,7 +146,7 @@ export async function POST(request: Request) {
       igBusinessId = pageIgData.instagram_business_account.id;
     }
 
-    let sourceMediaId: string | null = null;
+    let normalizedInstagramPostUrl: string | null = null;
 
     if (instagramPostUrl && !igBusinessId) {
       return NextResponse.json(
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (instagramPostUrl && igBusinessId) {
+    if (instagramPostUrl) {
       let parsedPostUrl: URL;
       try {
         parsedPostUrl = new URL(instagramPostUrl);
@@ -176,34 +176,11 @@ export async function POST(request: Request) {
         );
       }
 
-      const mediaUrl = new URL(`https://graph.facebook.com/v26.0/${igBusinessId}/media`);
-      mediaUrl.searchParams.set("fields", "id,permalink");
-      mediaUrl.searchParams.set("limit", "100");
-      mediaUrl.searchParams.set("access_token", accessToken);
-
-      const mediaRes = await fetch(mediaUrl.toString(), { cache: "no-store" });
-      const mediaData = await mediaRes.json();
-      console.log("DEBUG instagram media list:", JSON.stringify(mediaData));
-      if (!mediaRes.ok || mediaData.error) {
-        throw { step: "instagram_media", details: mediaData.error ?? mediaData };
-      }
-
-      const normalizedInput = parsedPostUrl.toString().split("?")[0].replace(/\/$/, "");
-      const match = (mediaData.data ?? []).find((media: { id?: string; permalink?: string }) =>
-        media.permalink?.split("?")[0].replace(/\/$/, "") === normalizedInput
-      );
-
-      if (!match?.id) {
-        return NextResponse.json(
-          {
-            error: "instagram_post_not_found",
-            message: "Não encontrei essa publicação entre as publicações recentes da conta do Instagram vinculada. Verifique o link e a conta selecionada.",
-          },
-          { status: 400 }
-        );
-      }
-
-      sourceMediaId = match.id;
+      // A Marketing API aceita diretamente o permalink da publicação do Instagram.
+      // Isso evita depender do /media (que exige permissões extras e estava falhando
+      // antes mesmo da criação do criativo).
+      normalizedInstagramPostUrl = parsedPostUrl.toString().split("?")[0];
+      if (!normalizedInstagramPostUrl.endsWith("/")) normalizedInstagramPostUrl += "/";
     }
 
     const creativeRes = await fetch(
@@ -212,20 +189,21 @@ export async function POST(request: Request) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          sourceMediaId
+          normalizedInstagramPostUrl
             ? {
-                name: "AdAI - Criativo 1",
+                name: "AdAI - Criativo Instagram",
                 object_story_spec: {
                   page_id: pageId,
-                  instagram_actor_id: igBusinessId,
+                  instagram_user_id: igBusinessId,
                 },
-                source_instagram_media_id: sourceMediaId,
+                instagram_permalink_url: normalizedInstagramPostUrl,
                 access_token: accessToken,
               }
             : {
                 name: "AdAI - Criativo 1",
                 object_story_spec: {
                   page_id: pageId,
+                  ...(igBusinessId ? { instagram_user_id: igBusinessId } : {}),
                   link_data: {
                     message: criativo.texto_principal,
                     link: process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin,
@@ -239,7 +217,9 @@ export async function POST(request: Request) {
       }
     );
     const creativeData = await creativeRes.json();
-    if (creativeData.error) throw { step: "creative", details: creativeData.error };
+    if (!creativeRes.ok || creativeData.error) {
+      throw { step: "creative", details: creativeData.error ?? creativeData };
+    }
 
     const creativeId = creativeData.id;
 
@@ -258,7 +238,9 @@ export async function POST(request: Request) {
       }
     );
     const adData = await adRes.json();
-    if (adData.error) throw { step: "ad", details: adData.error };
+    if (!adRes.ok || adData.error) {
+      throw { step: "ad", details: adData.error ?? adData };
+    }
 
     await supabase.from("campaigns").insert({
       user_id: user.id,
@@ -281,9 +263,26 @@ export async function POST(request: Request) {
       message: "Campanha criada com sucesso em modo PAUSADO. Revise no Business Suite antes de ativar.",
     });
   } catch (err: any) {
-    console.error("Erro ao criar campanha:", err);
+    const step = err?.step ?? "unknown";
+    const details = err?.details ?? err;
+    const metaMessage =
+      details?.error_user_msg ??
+      details?.error_user_title ??
+      details?.message ??
+      "A Meta rejeitou uma etapa da criação da campanha.";
+
+    console.error(
+      "META_DEPLOY_ERROR",
+      JSON.stringify({ step, details }, null, 2)
+    );
+
     return NextResponse.json(
-      { error: "campaign_creation_failed", step: err.step, details: err.details },
+      {
+        error: "campaign_creation_failed",
+        step,
+        details,
+        message: `Erro da Meta na etapa ${step}: ${metaMessage}`,
+      },
       { status: 500 }
     );
   }
