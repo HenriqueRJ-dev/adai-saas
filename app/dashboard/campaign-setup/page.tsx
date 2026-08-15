@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, ImagePlus, Loader2, MessageCircle, MonitorUp, Upload, Video } from "lucide-react";
 
 const OBJECTIVES = [
@@ -32,6 +32,23 @@ export default function CampaignSetupPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
+  const [brandAnalysis, setBrandAnalysis] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/brand/manual-analysis", { cache: "no-store" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.analysis) {
+          setBrandAnalysis(data.analysis);
+          if (!serviceRegion && data.analysis.regiao && !String(data.analysis.regiao).toLowerCase().includes("definir")) {
+            setServiceRegion(String(data.analysis.regiao));
+          }
+        }
+      })
+      .catch(() => {});
+  // carregamos uma vez para reaproveitar automaticamente o diagnóstico salvo
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const previewUrl = useMemo(() => creativeFile ? URL.createObjectURL(creativeFile) : null, [creativeFile]);
   const isVideo = creativeFile?.type.startsWith("video/") ?? false;
@@ -82,6 +99,21 @@ export default function CampaignSetupPage() {
             <p className="mt-2 text-neutral-500">Você informa o essencial. O AdAI monta estratégia, copy e configuração para você publicar no Gerenciador de Anúncios.</p>
 
             <div className="mt-8 space-y-7">
+              {brandAnalysis ? (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-950">Análise da marca aplicada automaticamente</p>
+                      <p className="mt-1 text-xs leading-5 text-emerald-800">{brandAnalysis.nome_marca || "Sua marca"} · {brandAnalysis.nicho || "segmento identificado"}. Público, oferta, tom e região salvos entram como contexto para montar este plano.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
+                  Você ainda não tem uma análise de marca salva. <Link href="/dashboard/analyze" className="font-semibold underline underline-offset-2">Analisar primeiro</Link> melhora o plano da campanha.
+                </div>
+              )}
               <Field label="Orçamento diário (R$)" hint="Esse valor entra no plano. O AdAI não publica nem inicia cobranças automaticamente.">
                 <input type="number" min={MIN_DAILY_BUDGET} step="0.01" value={dailyBudget} onChange={(e) => setDailyBudget(e.target.value)} placeholder="Ex: 30" className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-neutral-200" />
               </Field>

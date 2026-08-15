@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { generateGeminiJson } from "@/lib/gemini";
 
 const destinationLabels: Record<string, string> = {
   WHATSAPP: "WhatsApp",
@@ -110,40 +111,27 @@ export async function POST(request: Request) {
   if (!campaignConfig) return NextResponse.json({ error: "campaign_config_missing", message: "Configure a campanha primeiro." }, { status: 400 });
 
   const fallback = fallbackStrategy(brandAnalysis?.analysis, campaignConfig, extra);
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (!geminiKey) {
-    const { error } = await saveStrategy(supabase, user.id, fallback);
-    if (error) return NextResponse.json({ error: "save_failed" }, { status: 500 });
-    return NextResponse.json({ success: true, strategy: fallback, fallback: true });
-  }
-
-  const prompt = `Você é um gestor de tráfego especialista em pequenos negócios brasileiros. Crie um PLANO MANUAL de Meta Ads, não tente publicar nada pela API.\nA pessoa vai copiar essas configurações para o Gerenciador de Anúncios.\nAnálise da marca:\n${JSON.stringify(brandAnalysis?.analysis ?? {}, null, 2)}\nConfiguração:\n${JSON.stringify({ dailyBudget: campaignConfig.daily_budget, objective: campaignConfig.objective, ...extra }, null, 2)}\nRetorne APENAS JSON válido usando EXATAMENTE esta estrutura:\n${JSON.stringify(fallback, null, 2)}\nMantenha passos_publicacao como array de strings curtas. Gere 3 copies. Não invente métricas ou resultados garantidos.`;
-
   let strategy: any = fallback;
   let usedFallback = true;
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
-      cache: "no-store",
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-      if (parsed?.resumo && parsed?.configuracao_meta && Array.isArray(parsed?.criativos) && Array.isArray(parsed?.passos_publicacao)) {
-        strategy = parsed;
-        usedFallback = false;
-      }
-    } else {
-      console.warn("Gemini indisponível no plano; usando fallback.", JSON.stringify(data));
-    }
-  } catch (error) {
-    console.warn("Falha no Gemini; usando fallback de plano.", error);
+
+  const prompt = `Você é um gestor de tráfego especialista em pequenos negócios brasileiros. Crie um PLANO MANUAL de Meta Ads, não tente publicar nada pela API.
+A pessoa vai copiar essas configurações para o Gerenciador de Anúncios.
+Análise da marca:
+${JSON.stringify(brandAnalysis?.analysis ?? {}, null, 2)}
+Configuração:
+${JSON.stringify({ dailyBudget: campaignConfig.daily_budget, objective: campaignConfig.objective, ...extra }, null, 2)}
+Retorne APENAS JSON válido usando EXATAMENTE esta estrutura:
+${JSON.stringify(fallback, null, 2)}
+Mantenha passos_publicacao como array de strings curtas. Gere 3 copies. Não invente métricas, resultados garantidos ou dados de mercado que não estejam no contexto.`;
+
+  const generated = await generateGeminiJson([{ text: prompt }]);
+  const parsed = generated?.data;
+  if (parsed?.resumo && parsed?.configuracao_meta && Array.isArray(parsed?.criativos) && Array.isArray(parsed?.passos_publicacao)) {
+    strategy = parsed;
+    usedFallback = false;
   }
 
   const { error } = await saveStrategy(supabase, user.id, strategy);
   if (error) return NextResponse.json({ error: "save_failed" }, { status: 500 });
-  return NextResponse.json({ success: true, strategy, fallback: usedFallback });
+  return NextResponse.json({ success: true, strategy, fallback: usedFallback, model: generated?.model ?? null });
 }

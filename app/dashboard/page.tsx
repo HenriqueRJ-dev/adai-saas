@@ -51,7 +51,7 @@ export default async function DashboardPage() {
             <section className="rounded-2xl border bg-white p-5 shadow-sm">
               <div><h2 className="text-lg font-semibold">Seu fluxo no AdAI</h2><p className="mt-1 text-sm text-neutral-500">Três passos para sair da ideia e chegar a uma campanha pronta para publicar.</p></div>
               <div className="mt-5 divide-y">
-                <Step done={hasAnalysis} title="1. Analisar sua marca" description="Informe negócio, oferta, público e região. Não precisa conectar Instagram." href="/dashboard/analyze" action={hasAnalysis ? "Atualizar" : "Analisar"} />
+                <Step done={hasAnalysis} title="1. Analisar sua marca" description="Mostre seu Instagram, site ou prints. O AdAI transforma o material em diagnóstico para campanhas." href="/dashboard/analyze" action={hasAnalysis ? "Atualizar" : "Analisar"} />
                 <Step done={hasPlan} title="2. Montar a campanha" description="Escolha objetivo, destino, orçamento e o criativo que pretende usar." href="/dashboard/campaign-setup" action={hasPlan ? "Montar outra" : "Montar"} />
                 <Step done={hasPlan} title="3. Publicar seguindo o plano" description="O AdAI entrega configuração, copies e passo a passo para o Gerenciador de Anúncios." href={hasPlan ? "/dashboard/campaign-plan" : "/dashboard/campaign-setup"} action={hasPlan ? "Abrir plano" : "Aguardando"} />
               </div>
