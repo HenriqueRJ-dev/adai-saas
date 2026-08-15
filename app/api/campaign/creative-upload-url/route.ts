@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const BUCKET = "ad-creatives";
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"]);
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -14,8 +15,8 @@ export async function POST(request: Request) {
   if (!body?.fileName || !body.mimeType || !ALLOWED.has(body.mimeType)) {
     return NextResponse.json({ error: "Formato de arquivo não suportado." }, { status: 400 });
   }
-  if (typeof body.size === "number" && body.size > 250 * 1024 * 1024) {
-    return NextResponse.json({ error: "O arquivo deve ter no máximo 250 MB." }, { status: 400 });
+  if (typeof body.size === "number" && body.size > MAX_FILE_SIZE) {
+    return NextResponse.json({ error: "O arquivo deve ter no máximo 50 MB." }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -23,7 +24,6 @@ export async function POST(request: Request) {
   if (!buckets?.some((bucket) => bucket.name === BUCKET)) {
     const { error: bucketError } = await admin.storage.createBucket(BUCKET, {
       public: false,
-      fileSizeLimit: 250 * 1024 * 1024,
       allowedMimeTypes: Array.from(ALLOWED),
     });
     if (bucketError && !/already exists/i.test(bucketError.message)) {

@@ -20,6 +20,7 @@ const DESTINATIONS = [
 ];
 
 const MIN_DAILY_BUDGET = 20;
+const MAX_CREATIVE_SIZE = 50 * 1024 * 1024;
 
 type CreativeMode = "upload" | "post";
 
@@ -48,7 +49,8 @@ export default function CampaignSetupPage() {
       setError("Informe a URL completa do site, começando com http:// ou https://."); return;
     }
     if (creativeMode === "upload" && !creativeFile) { setError("Envie uma imagem ou vídeo para usar no anúncio."); return; }
-    if (creativeMode === "post" && !instagramPostUrl.trim()) { setError("Cole o link da publicação do Instagram."); return; }
+    if (creativeMode === "upload" && creativeFile && creativeFile.size > MAX_CREATIVE_SIZE) { setError("O arquivo deve ter no máximo 50 MB."); return; }
+    if (creativeMode === "post") { setError("Por enquanto, use Enviar arquivo. A reutilização direta de post do Instagram ainda não está liberada neste fluxo."); return; }
 
     setSaving(true);
     try {
@@ -127,12 +129,12 @@ export default function CampaignSetupPage() {
               <Field label="Criativo do anúncio" hint="Upload é o modo recomendado. Você também pode reutilizar uma publicação do Instagram.">
                 <div className="mb-3 grid grid-cols-2 rounded-xl bg-neutral-100 p-1">
                   <button type="button" onClick={() => setCreativeMode("upload")} className={`rounded-lg px-3 py-2 text-sm font-medium ${creativeMode === "upload" ? "bg-white shadow-sm" : "text-neutral-500"}`}>Enviar arquivo</button>
-                  <button type="button" onClick={() => setCreativeMode("post")} className={`rounded-lg px-3 py-2 text-sm font-medium ${creativeMode === "post" ? "bg-white shadow-sm" : "text-neutral-500"}`}>Post existente</button>
+                  <button type="button" disabled className="cursor-not-allowed rounded-lg px-3 py-2 text-sm font-medium text-neutral-400" title="Em breve">Post existente · em breve</button>
                 </div>
                 {creativeMode === "upload" ? (
                   <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 py-8 text-center hover:bg-neutral-50">
-                    <Upload className="h-6 w-6 text-neutral-400" /><p className="mt-3 text-sm font-medium">Enviar imagem ou vídeo</p><p className="mt-1 text-xs text-neutral-500">JPG, PNG, WEBP, MP4 ou MOV</p>
-                    <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" className="hidden" onChange={(e) => setCreativeFile(e.target.files?.[0] ?? null)} />
+                    <Upload className="h-6 w-6 text-neutral-400" /><p className="mt-3 text-sm font-medium">Enviar imagem ou vídeo</p><p className="mt-1 text-xs text-neutral-500">JPG, PNG, WEBP, MP4 ou MOV · até 50 MB</p>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" className="hidden" onChange={(e) => { const file = e.target.files?.[0] ?? null; if (file && file.size > MAX_CREATIVE_SIZE) { setCreativeFile(null); setError("O arquivo deve ter no máximo 50 MB."); e.currentTarget.value = ""; return; } setError(null); setCreativeFile(file); }} />
                   </label>
                 ) : (
                   <div className="relative"><Instagram className="absolute left-3 top-3.5 h-4 w-4 text-neutral-400" /><input type="url" value={instagramPostUrl} onChange={(e) => setInstagramPostUrl(e.target.value)} placeholder="https://www.instagram.com/p/..." className="w-full rounded-xl border py-3 pl-10 pr-4 text-sm" /></div>

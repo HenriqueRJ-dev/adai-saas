@@ -131,6 +131,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "creative_missing", message: "Envie uma imagem ou vídeo para continuar." }, { status: 400 });
   }
 
+  // A V6 tentava usar o permalink do Instagram como o link de destino do
+  // criativo de mensagens. A Meta rejeita essa combinação para CTAs como
+  // WhatsApp. Enquanto a importação real de mídia do post não estiver
+  // implementada, bloqueamos a combinação antes de criar objetos órfãos.
+  if (creativeMode === "post") {
+    return NextResponse.json({
+      error: "existing_post_temporarily_unavailable",
+      message: "Para criar campanhas pela API com WhatsApp, Direct, Messenger ou Site, envie a imagem ou o vídeo do criativo. A reutilização direta de post do Instagram será liberada em uma próxima etapa."
+    }, { status: 400 });
+  }
+
   const accessToken = decryptToken(connection.access_token);
   const adAccountId = connection.ad_account_id;
   const pageId = connection.page_id;
