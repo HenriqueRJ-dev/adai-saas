@@ -1,17 +1,40 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptToken } from "@/lib/crypto";
+import { META_GRAPH_BASE } from "@/lib/meta";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const url = new URL(request.url);
+  const { origin, searchParams } = url;
   const code = searchParams.get("code");
-  const errorParam = searchParams.get("error");
+  const state = searchParams.get("state");
+  const oauthError = searchParams.get("error");
 
-  if (errorParam) {
-    return NextResponse.redirect(`${origin}/dashboard?meta_error=${errorParam}`);
+  if (oauthError) {
+    return NextResponse.redirect(
+      `${origin}/dashboard?meta_error=${encodeURIComponent(oauthError)}`
+    );
   }
+
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const stateCookie = cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("meta_oauth_state="))
+    ?.slice("meta_oauth_state=".length);
+
+  if (!state || !stateCookie || state !== stateCookie) {
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=invalid_state`);
+  }
+
   if (!code) {
     return NextResponse.redirect(`${origin}/dashboard?meta_error=no_code`);
+  }
+
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) {
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=missing_meta_config`);
   }
 
   const supabase = await createClient();
@@ -23,47 +46,42 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login`);
   }
 
-  const appId = process.env.META_APP_ID;
-  const appSecret = process.env.META_APP_SECRET;
   const redirectUri = `${origin}/api/meta/oauth/callback`;
+  const shortTokenUrl = new URL(`${META_GRAPH_BASE}/oauth/access_token`);
+  shortTokenUrl.searchParams.set("client_id", appId);
+  shortTokenUrl.searchParams.set("client_secret", appSecret);
+  shortTokenUrl.searchParams.set("redirect_uri", redirectUri);
+  shortTokenUrl.searchParams.set("code", code);
 
-  const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
-  tokenUrl.searchParams.set("client_id", appId!);
-  tokenUrl.searchParams.set("client_secret", appSecret!);
-  tokenUrl.searchParams.set("redirect_uri", redirectUri);
-  tokenUrl.searchParams.set("code", code);
+  const shortTokenRes = await fetch(shortTokenUrl.toString(), { cache: "no-store" });
+  const shortTokenData = await shortTokenRes.json();
 
-  const tokenRes = await fetch(tokenUrl.toString());
-  const tokenData = await tokenRes.json();
-
-  if (!tokenRes.ok || tokenData.error) {
-    console.error("Erro ao trocar code por token:", tokenData);
+  if (!shortTokenRes.ok || !shortTokenData.access_token) {
+    console.error("Erro ao trocar code por token Meta:", shortTokenData);
     return NextResponse.redirect(`${origin}/dashboard?meta_error=token_exchange_failed`);
   }
 
-  const shortLivedToken = tokenData.access_token;
+  const longTokenUrl = new URL(`${META_GRAPH_BASE}/oauth/access_token`);
+  longTokenUrl.searchParams.set("grant_type", "fb_exchange_token");
+  longTokenUrl.searchParams.set("client_id", appId);
+  longTokenUrl.searchParams.set("client_secret", appSecret);
+  longTokenUrl.searchParams.set("fb_exchange_token", shortTokenData.access_token);
 
-  const longLivedUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
-  longLivedUrl.searchParams.set("grant_type", "fb_exchange_token");
-  longLivedUrl.searchParams.set("client_id", appId!);
-  longLivedUrl.searchParams.set("client_secret", appSecret!);
-  longLivedUrl.searchParams.set("fb_exchange_token", shortLivedToken);
+  const longTokenRes = await fetch(longTokenUrl.toString(), { cache: "no-store" });
+  const longTokenData = await longTokenRes.json();
+  const accessToken =
+    longTokenRes.ok && longTokenData.access_token
+      ? longTokenData.access_token
+      : shortTokenData.access_token;
 
-  const longLivedRes = await fetch(longLivedUrl.toString());
-  const longLivedData = await longLivedRes.json();
-
-  if (!longLivedRes.ok || longLivedData.error) {
-    console.error("Erro ao gerar long-lived token:", longLivedData);
-    return NextResponse.redirect(`${origin}/dashboard?meta_error=long_lived_token_failed`);
+  if (!longTokenRes.ok) {
+    console.warn("Nao foi possivel estender token Meta; usando token inicial:", longTokenData);
   }
-
-  const longLivedToken = longLivedData.access_token;
-  const encryptedToken = encryptToken(longLivedToken);
 
   const { error: dbError } = await supabase.from("meta_connections").upsert(
     {
       user_id: user.id,
-      access_token: encryptedToken,
+      access_token: encryptToken(accessToken),
       connected_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }
@@ -74,5 +92,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/dashboard?meta_error=save_failed`);
   }
 
-  return NextResponse.redirect(`${origin}/dashboard?meta_connected=true`);
+  const response = NextResponse.redirect(`${origin}/dashboard?meta_connected=true`);
+  response.cookies.set("meta_oauth_state", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 0,
+    path: "/",
+  });
+  return response;
 }
