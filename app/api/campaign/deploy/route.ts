@@ -140,7 +140,6 @@ export async function POST(request: Request) {
       `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`
     );
     const pageIgData = await pageIgRes.json();
-    console.log("DEBUG page instagram_business_account:", JSON.stringify(pageIgData));
 
     if (pageIgData.instagram_business_account?.id) {
       igBusinessId = pageIgData.instagram_business_account.id;
