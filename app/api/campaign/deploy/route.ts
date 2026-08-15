@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
   try {
     const campaignRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/campaigns`,
+      `https://graph.facebook.com/v26.0/${adAccountId}/campaigns`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     const campaignId = campaignData.id;
 
     const adSetRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/adsets`,
+      `https://graph.facebook.com/v26.0/${adAccountId}/adsets`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,55 +137,77 @@ export async function POST(request: Request) {
     let igBusinessId: string | null = null;
 
     const pageIgRes = await fetch(
-      `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`
+      `https://graph.facebook.com/v26.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`
     );
     const pageIgData = await pageIgRes.json();
+    console.log("DEBUG page instagram_business_account:", JSON.stringify(pageIgData));
 
     if (pageIgData.instagram_business_account?.id) {
       igBusinessId = pageIgData.instagram_business_account.id;
     }
 
     let sourceMediaId: string | null = null;
-    let instagramError: NextResponse | null = null;
 
-    if (instagramPostUrl && igBusinessId) {
-      const oembedUrl = new URL("https://graph.facebook.com/v21.0/instagram_oembed");
-      oembedUrl.searchParams.set("url", instagramPostUrl);
-      oembedUrl.searchParams.set("fields", "media_id");
-      oembedUrl.searchParams.set("access_token", accessToken);
-
-      const oembedRes = await fetch(oembedUrl.toString());
-      const oembedData = await oembedRes.json();
-      console.log("DEBUG oembed:", JSON.stringify(oembedData));
-
-      if (oembedData.media_id) {
-        sourceMediaId = oembedData.media_id;
-      } else {
-        instagramError = NextResponse.json(
-          {
-            error: "instagram_post_not_found",
-            message: "Não encontrei essa publicação. Verifique se o link está correto e se o post é público.",
-            details: oembedData.error,
-          },
-          { status: 400 }
-        );
-      }
-    } else if (instagramPostUrl && !igBusinessId) {
-      instagramError = NextResponse.json(
+    if (instagramPostUrl && !igBusinessId) {
+      return NextResponse.json(
         {
           error: "instagram_not_linked",
-          message: "A Pagina do Facebook conectada nao tem uma conta do Instagram profissional vinculada, ou falta permissao. Reconecte o Meta e tente novamente.",
+          message: "A Página do Facebook selecionada não tem uma conta profissional do Instagram vinculada, ou o token não possui permissão para acessá-la.",
         },
         { status: 400 }
       );
     }
 
-    if (instagramError) {
-      return instagramError;
+    if (instagramPostUrl && igBusinessId) {
+      let parsedPostUrl: URL;
+      try {
+        parsedPostUrl = new URL(instagramPostUrl);
+      } catch {
+        return NextResponse.json(
+          { error: "invalid_instagram_url", message: "O link do Instagram é inválido." },
+          { status: 400 }
+        );
+      }
+
+      if (!["instagram.com", "www.instagram.com"].includes(parsedPostUrl.hostname.toLowerCase())) {
+        return NextResponse.json(
+          { error: "invalid_instagram_url", message: "Informe um link de publicação do Instagram." },
+          { status: 400 }
+        );
+      }
+
+      const mediaUrl = new URL(`https://graph.facebook.com/v26.0/${igBusinessId}/media`);
+      mediaUrl.searchParams.set("fields", "id,permalink");
+      mediaUrl.searchParams.set("limit", "100");
+      mediaUrl.searchParams.set("access_token", accessToken);
+
+      const mediaRes = await fetch(mediaUrl.toString(), { cache: "no-store" });
+      const mediaData = await mediaRes.json();
+      console.log("DEBUG instagram media list:", JSON.stringify(mediaData));
+      if (!mediaRes.ok || mediaData.error) {
+        throw { step: "instagram_media", details: mediaData.error ?? mediaData };
+      }
+
+      const normalizedInput = parsedPostUrl.toString().split("?")[0].replace(/\/$/, "");
+      const match = (mediaData.data ?? []).find((media: { id?: string; permalink?: string }) =>
+        media.permalink?.split("?")[0].replace(/\/$/, "") === normalizedInput
+      );
+
+      if (!match?.id) {
+        return NextResponse.json(
+          {
+            error: "instagram_post_not_found",
+            message: "Não encontrei essa publicação entre as publicações recentes da conta do Instagram vinculada. Verifique o link e a conta selecionada.",
+          },
+          { status: 400 }
+        );
+      }
+
+      sourceMediaId = match.id;
     }
 
     const creativeRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/adcreatives`,
+      `https://graph.facebook.com/v26.0/${adAccountId}/adcreatives`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -206,7 +228,7 @@ export async function POST(request: Request) {
                   page_id: pageId,
                   link_data: {
                     message: criativo.texto_principal,
-                    link: "https://adai-saas.vercel.app",
+                    link: process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin,
                     name: criativo.titulo,
                     call_to_action: { type: ctaType },
                   },
@@ -222,7 +244,7 @@ export async function POST(request: Request) {
     const creativeId = creativeData.id;
 
     const adRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/ads`,
+      `https://graph.facebook.com/v26.0/${adAccountId}/ads`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
