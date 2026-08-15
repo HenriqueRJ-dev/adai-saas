@@ -259,7 +259,7 @@ export async function POST(request: Request) {
           ...mediaFields,
           message: criativo.texto_principal,
           name: criativo.titulo,
-          link: creativeMode === "post" ? body.instagramPostUrl : link,
+          link,
           call_to_action: callToAction,
         },
       }),
