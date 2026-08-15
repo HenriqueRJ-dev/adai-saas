@@ -1,4 +1,6 @@
+import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
+import { META_GRAPH_VERSION } from "@/lib/meta";
 
 const META_SCOPES = [
   "ads_management",
@@ -21,12 +23,22 @@ export async function GET(request: Request) {
   }
 
   const redirectUri = `${origin}/api/meta/oauth/callback`;
+  const state = randomBytes(24).toString("hex");
 
-  const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+  const authUrl = new URL(`https://www.facebook.com/${META_GRAPH_VERSION}/dialog/oauth`);
   authUrl.searchParams.set("client_id", appId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("scope", META_SCOPES);
   authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("state", state);
 
-  return NextResponse.redirect(authUrl.toString());
+  const response = NextResponse.redirect(authUrl.toString());
+  response.cookies.set("meta_oauth_state", state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 10 * 60,
+    path: "/",
+  });
+  return response;
 }
