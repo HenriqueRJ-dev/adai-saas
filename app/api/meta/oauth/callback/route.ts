@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { decryptToken } from "@/lib/crypto";
+import { encryptToken } from "@/lib/crypto";
 
-export async function POST(request: Request) {
-  const { instagramPostUrl } = await request.json();
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+  const errorParam = searchParams.get("error");
+
+  if (errorParam) {
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=${errorParam}`);
+  }
+  if (!code) {
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=no_code`);
+  }
 
   const supabase = await createClient();
   const {
@@ -11,239 +20,59 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
+    return NextResponse.redirect(`${origin}/login`);
   }
 
-  const { data: connection } = await supabase
-    .from("meta_connections")
-    .select("access_token, ad_account_id, page_id, instagram_user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  const redirectUri = `${origin}/api/meta/oauth/callback`;
 
-  if (!connection?.access_token || !connection?.ad_account_id || !connection?.page_id) {
-    return NextResponse.json(
-      { error: "meta_not_fully_configured" },
-      { status: 400 }
-    );
+  const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+  tokenUrl.searchParams.set("client_id", appId!);
+  tokenUrl.searchParams.set("client_secret", appSecret!);
+  tokenUrl.searchParams.set("redirect_uri", redirectUri);
+  tokenUrl.searchParams.set("code", code);
+
+  const tokenRes = await fetch(tokenUrl.toString());
+  const tokenData = await tokenRes.json();
+
+  if (!tokenRes.ok || tokenData.error) {
+    console.error("Erro ao trocar code por token:", tokenData);
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=token_exchange_failed`);
   }
 
-  const { data: campaignConfig } = await supabase
-    .from("campaign_configs")
-    .select("daily_budget, objective, strategy")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const shortLivedToken = tokenData.access_token;
 
-  if (!campaignConfig?.strategy) {
-    return NextResponse.json(
-      { error: "strategy_missing", message: "Gere a estrategia primeiro." },
-      { status: 400 }
-    );
+  const longLivedUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+  longLivedUrl.searchParams.set("grant_type", "fb_exchange_token");
+  longLivedUrl.searchParams.set("client_id", appId!);
+  longLivedUrl.searchParams.set("client_secret", appSecret!);
+  longLivedUrl.searchParams.set("fb_exchange_token", shortLivedToken);
+
+  const longLivedRes = await fetch(longLivedUrl.toString());
+  const longLivedData = await longLivedRes.json();
+
+  if (!longLivedRes.ok || longLivedData.error) {
+    console.error("Erro ao gerar long-lived token:", longLivedData);
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=long_lived_token_failed`);
   }
 
-  const accessToken = decryptToken(connection.access_token);
-  const adAccountId = connection.ad_account_id;
-  const pageId = connection.page_id;
-  const strategy = campaignConfig.strategy as any;
+  const longLivedToken = longLivedData.access_token;
+  const encryptedToken = encryptToken(longLivedToken);
 
-  try {
-    const campaignRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/campaigns`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `AdAI - Campanha ${new Date().toLocaleDateString("pt-BR")}`,
-          objective: campaignConfig.objective,
-          status: "PAUSED",
-          special_ad_categories: [],
-          is_adset_budget_sharing_enabled: false,
-          access_token: accessToken,
-        }),
-      }
-    );
-    const campaignData = await campaignRes.json();
-    if (campaignData.error) throw { step: "campaign", details: campaignData.error };
-
-    const campaignId = campaignData.id;
-
-    const adSetRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/adsets`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "AdAI - Conjunto principal",
-          campaign_id: campaignId,
-          daily_budget: Math.round(Number(campaignConfig.daily_budget) * 100),
-          billing_event: "IMPRESSIONS",
-          optimization_goal: "REACH",
-          bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-          targeting: {
-            age_min: strategy.publico?.idade_min ?? 18,
-            age_max: strategy.publico?.idade_max ?? 65,
-            genders:
-              strategy.publico?.genero === "male"
-                ? [1]
-                : strategy.publico?.genero === "female"
-                ? [2]
-                : [1, 2],
-            geo_locations: { countries: ["BR"] },
-            targeting_automation: {
-              advantage_audience: 0,
-            },
-          },
-          status: "PAUSED",
-          access_token: accessToken,
-        }),
-      }
-    );
-    const adSetData = await adSetRes.json();
-    if (adSetData.error) throw { step: "adset", details: adSetData.error };
-
-    const adSetId = adSetData.id;
-
-    const criativo = strategy.criativos?.[0] ?? {
-      titulo: "Conheca nosso trabalho",
-      texto_principal: "Entre em contato para saber mais.",
-      cta: "SAIBA_MAIS",
-    };
-
-    const ctaMap: Record<string, string> = {
-      SAIBA_MAIS: "LEARN_MORE",
-      LEARN_MORE: "LEARN_MORE",
-      CADASTRE_SE: "SIGN_UP",
-      SIGN_UP: "SIGN_UP",
-      COMPRE_AGORA: "SHOP_NOW",
-      SHOP_NOW: "SHOP_NOW",
-      ENTRE_EM_CONTATO: "CONTACT_US",
-      CONTACT_US: "CONTACT_US",
-      LIGUE_AGORA: "CALL_NOW",
-      CALL_NOW: "CALL_NOW",
-      ENVIAR_MENSAGEM: "MESSAGE_PAGE",
-      MESSAGE_PAGE: "MESSAGE_PAGE",
-      WHATSAPP: "WHATSAPP_MESSAGE",
-      WHATSAPP_MESSAGE: "WHATSAPP_MESSAGE",
-      ENVIAR_WHATSAPP: "WHATSAPP_MESSAGE",
-      SOLICITAR_ORCAMENTO: "GET_QUOTE",
-      GET_QUOTE: "GET_QUOTE",
-      INSCREVA_SE: "SIGN_UP",
-      COMPRAR: "SHOP_NOW",
-      BAIXAR: "DOWNLOAD",
-      DOWNLOAD: "DOWNLOAD",
-    };
-
-    const ctaType = ctaMap[String(criativo.cta ?? "").toUpperCase()] ?? "LEARN_MORE";
-
-    // Resolve o link do Instagram para o media ID, se foi enviado
-    let sourceMediaId: string | null = null;
-
-    if (instagramPostUrl && connection.instagram_user_id) {
-      const igAccessToken = accessToken; // reusa o token do Meta, que já funciona
-      const igUserId = connection.instagram_user_id;
-
-      const mediaListRes = await fetch(
-        `https://graph.facebook.com/v21.0/${igUserId}/media?fields=id,permalink&limit=50&access_token=${igAccessToken}`
-      );
-      const mediaListData = await mediaListRes.json();
-      console.log("DEBUG instagram media:", JSON.stringify(mediaListData));
-
-      const normalizedInput = instagramPostUrl.split("?")[0].replace(/\/$/, "");
-      const match = mediaListData.data?.find(
-        (m: any) => m.permalink?.replace(/\/$/, "") === normalizedInput
-      );
-
-      if (!match) {
-        return NextResponse.json(
-          {
-            error: "instagram_post_not_found",
-            message: "Não encontrei essa publicação na conta do Instagram conectada. Verifique o link.",
-          },
-          { status: 400 }
-        );
-      }
-
-      sourceMediaId = match.id;
-    }
-
-    const creativeRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/adcreatives`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          sourceMediaId
-            ? {
-                name: "AdAI - Criativo 1",
-                object_story_spec: {
-                  page_id: pageId,
-                  instagram_actor_id: connection.instagram_user_id,
-                },
-                source_instagram_media_id: sourceMediaId,
-                access_token: accessToken,
-              }
-            : {
-                name: "AdAI - Criativo 1",
-                object_story_spec: {
-                  page_id: pageId,
-                  link_data: {
-                    message: criativo.texto_principal,
-                    link: "https://adai-saas.vercel.app",
-                    name: criativo.titulo,
-                    call_to_action: { type: ctaType },
-                  },
-                },
-                access_token: accessToken,
-              }
-        ),
-      }
-    );
-    const creativeData = await creativeRes.json();
-    if (creativeData.error) throw { step: "creative", details: creativeData.error };
-
-    const creativeId = creativeData.id;
-
-    const adRes = await fetch(
-      `https://graph.facebook.com/v21.0/${adAccountId}/ads`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "AdAI - Anuncio 1",
-          adset_id: adSetId,
-          creative: { creative_id: creativeId },
-          status: "PAUSED",
-          access_token: accessToken,
-        }),
-      }
-    );
-    const adData = await adRes.json();
-    if (adData.error) throw { step: "ad", details: adData.error };
-
-    await supabase.from("campaigns").insert({
+  const { error: dbError } = await supabase.from("meta_connections").upsert(
+    {
       user_id: user.id,
-      meta_campaign_id: campaignId,
-      status: "PAUSED",
-      objective: campaignConfig.objective,
-    });
+      access_token: encryptedToken,
+      connected_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" }
+  );
 
-    await supabase
-      .from("campaign_configs")
-      .update({ status: "created" })
-      .eq("user_id", user.id);
-
-    return NextResponse.json({
-      success: true,
-      campaignId,
-      adSetId,
-      creativeId,
-      adId: adData.id,
-      message: "Campanha criada com sucesso em modo PAUSADO. Revise no Business Suite antes de ativar.",
-    });
-  } catch (err: any) {
-    console.error("Erro ao criar campanha:", err);
-    return NextResponse.json(
-      { error: "campaign_creation_failed", step: err.step, details: err.details },
-      { status: 500 }
-    );
+  if (dbError) {
+    console.error("Erro ao salvar conexao Meta:", dbError);
+    return NextResponse.redirect(`${origin}/dashboard?meta_error=save_failed`);
   }
+
+  return NextResponse.redirect(`${origin}/dashboard?meta_connected=true`);
 }
