@@ -1,23 +1,23 @@
-# AdAI V9 — Análise real por Instagram, site e prints
+# AdAI V10 — Copiloto de Performance para Instagram
 
-Versão do AdAI em modo copiloto, sem depender da aprovação/publicação automática da Meta.
+Fluxo principal:
 
-## Fluxo principal
-1. Cadastro/login
-2. Análise da marca por uma das entradas:
-   - Instagram + prints do perfil/feed
-   - Site público
-   - Prints da marca
-   - Preenchimento manual como alternativa
-3. Processamento visual com progresso e mensagens rotativas
-4. Diagnóstico salvo no Supabase: posicionamento, oferta, público, dores, diferenciais, oportunidades e ângulos de anúncio
-5. A análise salva é aplicada automaticamente na criação da campanha
-6. Montagem do plano: objetivo, destino, orçamento, região e criativo
-7. Plano final com público, configuração, copies e passo a passo para publicar manualmente no Meta Ads
+1. **Analisar a marca** — Instagram, site, prints ou modo manual.
+2. **Comparar criativos** — envie até 3 prints/capas de posts ou Reels.
+3. **Receber recomendação** — melhor criativo, público inicial, orçamento, duração e passos simples para impulsionar no Instagram.
+4. **Acompanhar resultados** — envie prints dos Insights e receba uma próxima ação: MANTER, AUMENTAR, PAUSAR, TROCAR CRIATIVO ou AGUARDAR MAIS DADOS.
 
-## IA
-- A análise multimodal usa imagens inline no Gemini quando a chave está disponível.
-- O código tenta modelos alternativos quando um modelo está indisponível ou sem cota.
-- Se todos falharem, o fluxo continua com uma análise básica de reserva, sem inventar métricas ou dados externos.
+## Rotas principais
 
-A integração Meta automática anterior continua preservada no projeto para uma futura Fase 2, mas não é necessária para o fluxo principal.
+- `/` — site principal
+- `/login` — login
+- `/signup` — cadastro
+- `/dashboard` — painel do cliente
+- `/dashboard/analyze` — análise da marca
+- `/dashboard/campaign-setup` — comparação/recomendação de criativos
+- `/dashboard/campaign-plan` — plano recomendado para Instagram
+- `/dashboard/optimize` — análise de resultados e próxima ação
+
+## Observação
+
+A V10 não depende da publicação automática pela Marketing API da Meta. A integração antiga permanece no projeto para uma fase futura, mas não faz parte do fluxo principal.
