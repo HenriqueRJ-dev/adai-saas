@@ -1,19 +1,13 @@
-# AdAI SaaS
+# AdAI V8.1 — Copiloto de campanhas
 
-Versão V5 do projeto.
+Versão que funciona sem depender da publicação automática pela Meta.
 
-## Fluxos
+Fluxo principal:
+1. Cadastro/login
+2. Análise manual da marca com IA + fallback local
+3. Tela de processamento da análise com mensagens rotativas e progresso visual
+4. Montagem da campanha (objetivo, destino, orçamento, região e criativo)
+5. Geração de plano persistido no Supabase
+6. Tela de plano com público, configuração, 3 copies e passo a passo para publicação manual
 
-- `/` — site principal
-- `/login` — login
-- `/signup` — cadastro
-- `/dashboard` — painel interno do cliente
-- `/dashboard/analyze` — análise de marca com IA
-- `/dashboard/meta-setup` — seleção de Página e conta de anúncios
-- `/dashboard/campaign-setup` — criação de campanha
-
-## Campanhas
-
-O fluxo de campanha aceita upload de imagem/vídeo usando Supabase Storage temporário ou um link de publicação existente. Os arquivos enviados ao bucket temporário são removidos após a tentativa de criação na Meta.
-
-As campanhas são criadas inicialmente como `PAUSED` para revisão antes da ativação.
+A integração Meta existente foi preservada no código para uma Fase 2, mas não é necessária para o fluxo principal desta versão.

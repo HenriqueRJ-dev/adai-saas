@@ -1,97 +1,46 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-const VALID_OBJECTIVES = [
-  "OUTCOME_SALES",
-  "OUTCOME_LEADS",
-  "OUTCOME_TRAFFIC",
-  "OUTCOME_AWARENESS",
-  "OUTCOME_ENGAGEMENT",
-  "OUTCOME_APP_PROMOTION",
-];
+
+const VALID_OBJECTIVES = ["OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS", "OUTCOME_ENGAGEMENT"];
+const VALID_DESTINATIONS = ["WHATSAPP", "INSTAGRAM_DIRECT", "MESSENGER", "WEBSITE"];
+
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
-  }
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "JSON invalido." }, { status: 400 });
-  }
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
 
-  const { dailyBudget, objective } = body as { dailyBudget?: unknown; objective?: unknown };
-  if (typeof dailyBudget !== "number" || dailyBudget <= 0) {
-    return NextResponse.json(
-      { error: "Orçamento diário inválido." },
-      { status: 400 }
-    );
-  }
-  if (typeof objective !== "string" || !VALID_OBJECTIVES.includes(objective)) {
-    return NextResponse.json(
-      { error: "Objetivo de campanha inválido." },
-      { status: 400 }
-    );
-  }
-  // Confirma que a conta Meta já foi conectada e configurada
-  // (Página + conta de anúncio) antes de aceitar uma campanha.
-  const { data: connection } = await supabase
-    .from("meta_connections")
-    .select("page_id, ad_account_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!connection?.page_id || !connection?.ad_account_id) {
-    return NextResponse.json(
-      { error: "Conecte sua conta Meta e escolha a Página antes de continuar." },
-      { status: 400 }
-    );
-  }
+  const body = await request.json().catch(() => null) as any;
+  const dailyBudget = Number(body?.dailyBudget);
+  const objective = String(body?.objective ?? "");
+  const destination = String(body?.destination ?? "");
+  const destinationUrl = String(body?.destinationUrl ?? "").trim();
+  const serviceRegion = String(body?.serviceRegion ?? "").trim();
+  const creativeName = String(body?.creativeName ?? "").trim();
+  const creativeType = String(body?.creativeType ?? "").trim();
+
+  if (!Number.isFinite(dailyBudget) || dailyBudget < 1) return NextResponse.json({ error: "Orçamento diário inválido." }, { status: 400 });
+  if (!VALID_OBJECTIVES.includes(objective)) return NextResponse.json({ error: "Objetivo inválido." }, { status: 400 });
+  if (!VALID_DESTINATIONS.includes(destination)) return NextResponse.json({ error: "Destino inválido." }, { status: 400 });
+  if (destination === "WEBSITE" && !/^https?:\/\//i.test(destinationUrl)) return NextResponse.json({ error: "Informe a URL completa do site." }, { status: 400 });
+  if (!creativeName) return NextResponse.json({ error: "Selecione uma imagem ou vídeo para o plano." }, { status: 400 });
+
   const { error } = await supabase.from("campaign_configs").upsert(
-    {
-      user_id: user.id,
-      daily_budget: dailyBudget,
-      objective,
-      status: "pending",
-    },
+    { user_id: user.id, daily_budget: dailyBudget, objective, status: "pending" },
     { onConflict: "user_id" }
   );
   if (error) {
     console.error("Erro ao salvar campaign_config:", error);
-    return NextResponse.json(
-      { error: "Erro ao salvar a configuração." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao salvar a configuração." }, { status: 500 });
   }
 
-  // Dispara automaticamente a geração da estratégia com IA,
-  // para o fluxo ficar 100% automático (sem passo manual extra).
-  const strategyRes = await fetch(
-    new URL("/api/campaign/generate-strategy", request.url),
-    {
-      method: "POST",
-      headers: {
-        cookie: request.headers.get("cookie") ?? "",
-      },
-    }
-  );
+  const strategyRes = await fetch(new URL("/api/campaign/generate-strategy", request.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", cookie: request.headers.get("cookie") ?? "" },
+    body: JSON.stringify({ destination, destinationUrl, serviceRegion, creativeName, creativeType }),
+    cache: "no-store",
+  });
+  const strategyData = await strategyRes.json().catch(() => ({}));
+  if (!strategyRes.ok) return NextResponse.json({ error: strategyData?.message ?? strategyData?.error ?? "Não foi possível gerar o plano." }, { status: strategyRes.status });
 
-  if (!strategyRes.ok) {
-    const strategyError = await strategyRes.json().catch(() => ({}));
-    console.error("Erro ao gerar estrategia automaticamente:", strategyError);
-    return NextResponse.json(
-      {
-        error: "strategy_generation_failed",
-        message: "Configuração salva, mas não foi possível gerar a estratégia com IA.",
-        details: strategyError,
-      },
-      { status: 502 }
-    );
-  }
-
-  const strategyData = await strategyRes.json();
-
-  return NextResponse.json({ success: true, strategy: strategyData.strategy });
+  return NextResponse.json({ success: true, strategy: strategyData.strategy, fallback: strategyData.fallback });
 }
