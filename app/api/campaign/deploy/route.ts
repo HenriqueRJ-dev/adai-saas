@@ -183,6 +183,13 @@ export async function POST(request: Request) {
     if (destination !== "WEBSITE") adSetPayload.destination_type = destination;
     else adSetPayload.destination_type = "WEBSITE";
 
+    // Destinos de mensagens exigem que a Página responsável pela conversa
+    // esteja declarada no promoted_object do conjunto de anúncios.
+    // Sem isso, a Meta retorna o subcódigo 1815807 para WhatsApp.
+    if (destination === "WHATSAPP" || destination === "MESSENGER" || destination === "INSTAGRAM_DIRECT") {
+      adSetPayload.promoted_object = { page_id: pageId };
+    }
+
     const adSetRes = await fetch(`${GRAPH}/${adAccountId}/adsets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
